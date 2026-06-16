@@ -1,11 +1,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Restore token on page refresh
 const stored = localStorage.getItem('saferide_user');
 if (stored) {
   const { token } = JSON.parse(stored);
