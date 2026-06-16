@@ -1,0 +1,137 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --pink:   #E91E8C;
+  --pink2:  #C2185B;
+  --pink3:  #880E4F;
+  --blush:  #FCE4EC;
+  --blush2: #F8BBD9;
+  --cream:  #FDF0F4;
+  --black:  #0D0D0D;
+  --white:  #ffffff;
+  --gray:   #888888;
+  --gray2:  #f0f0f0;
+  --border: #efefef;
+  --text:   #0D0D0D;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--white);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Layout ── */
+.container { max-width: 1100px; margin: 0 auto; padding: 0 2rem; }
+.page { padding: 2.5rem 2rem; }
+
+/* ── Cards ── */
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+.card h2 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: var(--text); letter-spacing: -0.3px; }
+
+/* ── Forms ── */
+.form-group { margin-bottom: 1rem; }
+.form-group label {
+  display: block; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  margin-bottom: 0.4rem; color: var(--gray);
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 0.65rem 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: 10px; font-size: 0.95rem;
+  transition: border-color 0.15s; background: white;
+  font-family: 'Inter', sans-serif;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none; border-color: var(--pink);
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.6rem 1.3rem; border-radius: 999px; border: none;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s; font-family: 'Inter', sans-serif; text-decoration: none;
+}
+.btn-primary { background: var(--pink); color: white; }
+.btn-primary:hover { background: var(--pink2); }
+.btn-danger { background: #e53e3e; color: white; }
+.btn-danger:hover { background: #c53030; }
+.btn-success { background: #16a34a; color: white; }
+.btn-success:hover { background: #15803d; }
+.btn-secondary { background: var(--gray2); color: var(--text); }
+.btn-secondary:hover { background: #e2e2e2; }
+.btn-sm { padding: 0.35rem 0.85rem; font-size: 12px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Alerts ── */
+.alert { padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 13px; }
+.alert-error   { background: #fff5f5; border: 1px solid #fecaca; color: #b91c1c; }
+.alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+.alert-info    { background: var(--cream); border: 1px solid var(--blush2); color: var(--pink2); }
+
+/* ── Badges ── */
+.badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.badge-blue  { background: #dbeafe; color: #1e40af; }
+.badge-green { background: #dcfce7; color: #166534; }
+.badge-red   { background: #fee2e2; color: #991b1b; }
+.badge-gray  { background: var(--gray2); color: #555; }
+
+/* ── Status badges ── */
+.status-Requested  { background: #fef9c3; color: #854d0e; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.status-Accepted   { background: #dbeafe; color: #1e40af; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.status-InProgress { background: #dcfce7; color: #166534; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.status-Completed  { background: var(--gray2); color: #555; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.status-Cancelled  { background: #fee2e2; color: #991b1b; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 11px; font-weight: 600; }
+
+/* ── Tables ── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { padding: 0.65rem 0.75rem; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--gray); border-bottom: 1px solid var(--border); }
+td { padding: 0.75rem; border-bottom: 1px solid var(--gray2); color: var(--text); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fdf4f8; }
+
+/* ── Grids ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+@media (max-width: 768px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+/* ── Stat boxes ── */
+.stat-box { background: white; border-radius: 12px; padding: 1.2rem; border: 1px solid var(--border); }
+.stat-box .stat-num { font-size: 2rem; font-weight: 800; color: var(--pink); letter-spacing: -1px; line-height: 1; }
+.stat-box .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--gray); margin-top: 6px; }
+
+/* ── Driver card ── */
+.driver-card {
+  border: 1px solid var(--border); border-radius: 12px; padding: 1rem;
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  background: white; transition: border-color 0.15s;
+}
+.driver-card:hover { border-color: var(--pink); }
+.driver-card .driver-info { flex: 1; }
+.driver-card .driver-name { font-weight: 700; font-size: 14px; }
+.driver-card .driver-meta { font-size: 12px; color: var(--gray); margin-top: 3px; }
+
+/* ── Loading ── */
+.loading { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--gray); font-size: 13px; }
+
+/* ── Section eyebrow ── */
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.18em; color: var(--pink); margin-bottom: 10px;
+}
+.eyebrow::before { content: ''; width: 18px; height: 1.5px; background: var(--pink); }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+@keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
