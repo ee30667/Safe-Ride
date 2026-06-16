@@ -39,7 +39,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "https://safe-ridee.vercel.app"
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "https://safe-ride-sigma.vercel.app"
 )
               .AllowAnyHeader()
               .AllowAnyMethod()
