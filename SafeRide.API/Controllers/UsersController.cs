@@ -11,8 +11,12 @@ namespace SafeRide.API.Controllers;
 [Authorize]
 public class UsersController : ControllerBase
 {
-    private readonly IUserRepository _userRepo;
-    public UsersController(IUserRepository userRepo) => _userRepo = userRepo;
+    private readonly IUserService _userService;
+
+    public UsersController(IUserService userService)
+    {
+        _userService = userService;
+    }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private string CurrentRole => User.FindFirstValue(ClaimTypes.Role)!;
@@ -21,9 +25,11 @@ public class UsersController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll()
     {
-        var users = await _userRepo.GetAllAsync();
-        var dtos = users.Select(u => new UserDto(u.Id, u.FullName, u.Email, u.PhoneNumber, u.Role, u.IsVerified, u.IsActive, u.CreatedAt));
-        return Ok(dtos);
+        var users = await _userService.GetAllAsync();
+
+        return Ok(users.Select(u =>
+            new UserDto(u.Id, u.FullName, u.Email, u.PhoneNumber, u.Role,
+                u.IsVerified, u.IsActive, u.CreatedAt)));
     }
 
     [HttpGet("{id}")]
@@ -31,31 +37,43 @@ public class UsersController : ControllerBase
     {
         if (CurrentRole != "Admin" && CurrentUserId != id)
             return Forbid();
-        var user = await _userRepo.GetByIdAsync(id);
+
+        var user = await _userService.GetByIdAsync(id);
         if (user == null) return NotFound();
-        return Ok(new UserDto(user.Id, user.FullName, user.Email, user.PhoneNumber, user.Role, user.IsVerified, user.IsActive, user.CreatedAt));
+
+        return Ok(new UserDto(user.Id, user.FullName, user.Email, user.PhoneNumber,
+            user.Role, user.IsVerified, user.IsActive, user.CreatedAt));
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
     {
-        if (CurrentRole != "Admin" && CurrentUserId != id) return Forbid();
-        var user = await _userRepo.GetByIdAsync(id);
+        if (CurrentRole != "Admin" && CurrentUserId != id)
+            return Forbid();
+
+        var user = await _userService.GetByIdAsync(id);
         if (user == null) return NotFound();
+
         user.FullName = dto.FullName;
         user.PhoneNumber = dto.PhoneNumber;
-        var updated = await _userRepo.UpdateAsync(user);
-        return Ok(new UserDto(updated.Id, updated.FullName, updated.Email, updated.PhoneNumber, updated.Role, updated.IsVerified, updated.IsActive, updated.CreatedAt));
+
+        var updated = await _userService.UpdateAsync(user);
+
+        return Ok(new UserDto(updated.Id, updated.FullName, updated.Email,
+            updated.PhoneNumber, updated.Role, updated.IsVerified,
+            updated.IsActive, updated.CreatedAt));
     }
 
     [HttpPatch("{id}/deactivate")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Deactivate(int id)
     {
-        var user = await _userRepo.GetByIdAsync(id);
+        var user = await _userService.GetByIdAsync(id);
         if (user == null) return NotFound();
+
         user.IsActive = false;
-        await _userRepo.UpdateAsync(user);
+        await _userService.UpdateAsync(user);
+
         return Ok(new { message = "User deactivated." });
     }
 
@@ -63,8 +81,11 @@ public class UsersController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        if (!await _userRepo.ExistsAsync(id)) return NotFound();
-        await _userRepo.DeleteAsync(id);
+        if (!await _userService.ExistsAsync(id))
+            return NotFound();
+
+        await _userService.DeleteAsync(id);
+
         return NoContent();
     }
 }

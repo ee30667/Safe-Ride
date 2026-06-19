@@ -11,15 +11,13 @@ namespace SafeRide.API.Controllers;
 [Authorize]
 public class RidesController : ControllerBase
 {
-    private readonly IRideRepository _rideRepo;
-    private readonly IDriverRepository _driverRepo;
     private readonly IRideService _rideService;
+    private readonly IDriverService _driverService;
 
-    public RidesController(IRideRepository rideRepo, IDriverRepository driverRepo, IRideService rideService)
+    public RidesController(IRideService rideService, IDriverService driverService)
     {
-        _rideRepo = rideRepo;
-        _driverRepo = driverRepo;
         _rideService = rideService;
+        _driverService = driverService;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -29,7 +27,7 @@ public class RidesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll()
     {
-        var rides = await _rideRepo.GetAllAsync();
+        var rides = await _rideService.GetAllAsync();
         return Ok(rides.Select(ToDto));
     }
 
@@ -38,29 +36,39 @@ public class RidesController : ControllerBase
     {
         if (CurrentRole == "Passenger")
         {
-            var rides = await _rideRepo.GetByPassengerIdAsync(CurrentUserId);
+            var rides = await _rideService.GetByPassengerIdAsync(CurrentUserId);
             return Ok(rides.Select(ToDto));
         }
+
         if (CurrentRole == "Driver")
         {
-            var driver = await _driverRepo.GetByUserIdAsync(CurrentUserId);
-            if (driver == null) return NotFound(new { message = "Driver profile not found." });
-            var rides = await _rideRepo.GetByDriverProfileIdAsync(driver.Id);
+            var driver = await _driverService.GetByUserIdAsync(CurrentUserId);
+
+            if (driver == null)
+                return NotFound(new { message = "Driver profile not found." });
+
+            var rides = await _rideService.GetByDriverProfileIdAsync(driver.Id);
+
             return Ok(rides.Select(ToDto));
         }
+
         return Forbid();
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var ride = await _rideRepo.GetByIdAsync(id);
+        var ride = await _rideService.GetByIdAsync(id);
         if (ride == null) return NotFound();
+
         if (CurrentRole != "Admin" && ride.PassengerId != CurrentUserId)
         {
-            var driver = await _driverRepo.GetByUserIdAsync(CurrentUserId);
-            if (driver == null || ride.DriverProfileId != driver.Id) return Forbid();
+            var driver = await _driverService.GetByUserIdAsync(CurrentUserId);
+
+            if (driver == null || ride.DriverProfileId != driver.Id)
+                return Forbid();
         }
+
         return Ok(ToDto(ride));
     }
 
@@ -73,59 +81,105 @@ public class RidesController : ControllerBase
             var ride = await _rideService.RequestRideAsync(CurrentUserId, dto);
             return CreatedAtAction(nameof(GetById), new { id = ride.Id }, ToDto(ride));
         }
-        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPatch("{id}/accept")]
     [Authorize(Roles = "Driver")]
     public async Task<IActionResult> Accept(int id)
     {
-        var driver = await _driverRepo.GetByUserIdAsync(CurrentUserId);
-        if (driver == null) return NotFound(new { message = "Driver profile not found." });
-        if (!driver.IsApproved) return BadRequest(new { message = "Your profile is not approved yet." });
-        if (!driver.IsAvailable) return BadRequest(new { message = "You are offline. Go online first to accept rides." });
+        var driver = await _driverService.GetByUserIdAsync(CurrentUserId);
+
+        if (driver == null)
+            return NotFound(new { message = "Driver profile not found." });
+
+        if (!driver.IsApproved)
+            return BadRequest(new { message = "Your profile is not approved yet." });
+
+        if (!driver.IsAvailable)
+            return BadRequest(new { message = "You are offline. Go online first to accept rides." });
 
         try
         {
             var ride = await _rideService.AcceptRideAsync(id, driver.Id);
-            // Set driver offline now that they have accepted
-            driver.IsAvailable = false;
-            await _driverRepo.UpdateAsync(driver);
             return Ok(ToDto(ride));
         }
-        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
+
     [HttpPatch("{id}/start")]
     [Authorize(Roles = "Driver")]
     public async Task<IActionResult> Start(int id)
     {
-        var driver = await _driverRepo.GetByUserIdAsync(CurrentUserId);
-        if (driver == null) return NotFound(new { message = "Driver profile not found." });
-        try { return Ok(ToDto(await _rideService.StartRideAsync(id, driver.Id))); }
-        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        var driver = await _driverService.GetByUserIdAsync(CurrentUserId);
+
+        if (driver == null)
+            return NotFound(new { message = "Driver profile not found." });
+
+        try
+        {
+            var ride = await _rideService.StartRideAsync(id, driver.Id);
+            return Ok(ToDto(ride));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPatch("{id}/complete")]
     [Authorize(Roles = "Driver")]
     public async Task<IActionResult> Complete(int id)
     {
-        var driver = await _driverRepo.GetByUserIdAsync(CurrentUserId);
-        if (driver == null) return NotFound(new { message = "Driver profile not found." });
-        try { return Ok(ToDto(await _rideService.CompleteRideAsync(id, driver.Id))); }
-        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        var driver = await _driverService.GetByUserIdAsync(CurrentUserId);
+
+        if (driver == null)
+            return NotFound(new { message = "Driver profile not found." });
+
+        try
+        {
+            var ride = await _rideService.CompleteRideAsync(id, driver.Id);
+            return Ok(ToDto(ride));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(int id)
     {
-        try { return Ok(ToDto(await _rideService.CancelRideAsync(id, CurrentUserId))); }
-        catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        try
+        {
+            var ride = await _rideService.CancelRideAsync(id, CurrentUserId);
+            return Ok(ToDto(ride));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     private static RideDto ToDto(Models.Ride r) => new(
-        r.Id, r.PassengerId, r.Passenger?.FullName ?? "",
-        r.DriverProfileId, r.DriverProfile?.User?.FullName,
-        r.PickupAddress, r.DropoffAddress,
-        r.Status.ToString(), r.EstimatedFare, r.FinalFare,
-        r.DistanceKm, r.RequestedAt, r.CompletedAt);
+        r.Id,
+        r.PassengerId,
+        r.Passenger?.FullName ?? "",
+        r.DriverProfileId,
+        r.DriverProfile?.User?.FullName,
+        r.PickupAddress,
+        r.DropoffAddress,
+        r.Status.ToString(),
+        r.EstimatedFare,
+        r.FinalFare,
+        r.DistanceKm,
+        r.RequestedAt,
+        r.CompletedAt
+    );
 }

@@ -12,8 +12,12 @@ namespace SafeRide.API.Controllers;
 [Authorize]
 public class DriversController : ControllerBase
 {
-    private readonly IDriverRepository _driverRepo;
-    public DriversController(IDriverRepository driverRepo) => _driverRepo = driverRepo;
+    private readonly IDriverService _driverService;
+
+    public DriversController(IDriverService driverService)
+    {
+        _driverService = driverService;
+    }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -21,7 +25,7 @@ public class DriversController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll()
     {
-        var drivers = await _driverRepo.GetAllAsync();
+        var drivers = await _driverService.GetAllAsync();
         return Ok(drivers.Select(ToDto));
     }
 
@@ -29,26 +33,37 @@ public class DriversController : ControllerBase
     [Authorize(Roles = "Admin,Passenger")]
     public async Task<IActionResult> GetAvailable()
     {
-        var drivers = await _driverRepo.GetAvailableDriversAsync();
+        var drivers = await _driverService.GetAvailableDriversAsync();
         return Ok(drivers.Select(ToDto));
+    }
+
+    [HttpGet("me")]
+    [Authorize(Roles = "Driver")]
+    public async Task<IActionResult> GetMyProfile()
+    {
+        var driver = await _driverService.GetByUserIdAsync(CurrentUserId);
+        if (driver == null) return NotFound();
+
+        return Ok(ToDto(driver));
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var driver = await _driverRepo.GetByIdAsync(id);
+        var driver = await _driverService.GetByIdAsync(id);
         if (driver == null) return NotFound();
+
         return Ok(ToDto(driver));
     }
 
     [HttpPost]
     [Authorize(Roles = "Driver")]
-    [HttpPost]
-    [Authorize(Roles = "Driver")]
     public async Task<IActionResult> Create([FromBody] CreateDriverProfileDto dto)
     {
-        var existing = await _driverRepo.GetByUserIdAsync(CurrentUserId);
-        if (existing != null) return BadRequest(new { message = "Driver profile already exists." });
+        var existing = await _driverService.GetByUserIdAsync(CurrentUserId);
+
+        if (existing != null)
+            return BadRequest(new { message = "Driver profile already exists." });
 
         var profile = new DriverProfile
         {
@@ -63,10 +78,10 @@ public class DriversController : ControllerBase
                 Year = dto.VehicleYear
             }
         };
-        var created = await _driverRepo.CreateAsync(profile);
 
-        // Re-fetch with User included to avoid null reference
-        var withUser = await _driverRepo.GetByIdAsync(created.Id);
+        var created = await _driverService.CreateAsync(profile);
+        var withUser = await _driverService.GetByIdAsync(created.Id);
+
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, ToDto(withUser!));
     }
 
@@ -74,11 +89,15 @@ public class DriversController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Approve(int id)
     {
-        var driver = await _driverRepo.GetByIdAsync(id);
+        var driver = await _driverService.GetByIdAsync(id);
         if (driver == null) return NotFound();
+
         driver.IsApproved = true;
+        driver.IsAvailable = true;
         driver.User.IsVerified = true;
-        await _driverRepo.UpdateAsync(driver);
+
+        await _driverService.UpdateAsync(driver);
+
         return Ok(new { message = "Driver approved." });
     }
 
@@ -86,11 +105,16 @@ public class DriversController : ControllerBase
     [Authorize(Roles = "Driver")]
     public async Task<IActionResult> ToggleAvailability([FromBody] bool isAvailable)
     {
-        var driver = await _driverRepo.GetByUserIdAsync(CurrentUserId);
+        var driver = await _driverService.GetByUserIdAsync(CurrentUserId);
         if (driver == null) return NotFound();
-        if (!driver.IsApproved) return BadRequest(new { message = "Driver not yet approved." });
+
+        if (!driver.IsApproved)
+            return BadRequest(new { message = "Driver not yet approved." });
+
         driver.IsAvailable = isAvailable;
-        await _driverRepo.UpdateAsync(driver);
+
+        await _driverService.UpdateAsync(driver);
+
         return Ok(new { isAvailable = driver.IsAvailable });
     }
 
@@ -98,24 +122,35 @@ public class DriversController : ControllerBase
     [Authorize(Roles = "Driver")]
     public async Task<IActionResult> UpdateLocation([FromBody] UpdateLocationDto dto)
     {
-        var driver = await _driverRepo.GetByUserIdAsync(CurrentUserId);
+        var driver = await _driverService.GetByUserIdAsync(CurrentUserId);
         if (driver == null) return NotFound();
+
         driver.Latitude = dto.Latitude;
         driver.Longitude = dto.Longitude;
-        await _driverRepo.UpdateAsync(driver);
+
+        await _driverService.UpdateAsync(driver);
+
         return Ok(new { message = "Location updated." });
     }
 
     private static DriverProfileDto ToDto(DriverProfile d) => new(
-        d.Id, d.UserId, d.User?.FullName ?? "", d.LicenseNumber,
-        d.IsAvailable, d.IsApproved, d.AverageRating, d.TotalRides,
-        d.Vehicle == null ? null : new VehicleDto(d.Vehicle.Id, d.Vehicle.Make, d.Vehicle.Model, d.Vehicle.Color, d.Vehicle.LicensePlate, d.Vehicle.Year));
-    [HttpGet("me")]
-    [Authorize(Roles = "Driver")]
-    public async Task<IActionResult> GetMyProfile()
-    {
-        var driver = await _driverRepo.GetByUserIdAsync(CurrentUserId);
-        if (driver == null) return NotFound();
-        return Ok(ToDto(driver));
-    }
+        d.Id,
+        d.UserId,
+        d.User?.FullName ?? "",
+        d.LicenseNumber,
+        d.IsAvailable,
+        d.IsApproved,
+        d.AverageRating,
+        d.TotalRides,
+        d.Vehicle == null
+            ? null
+            : new VehicleDto(
+                d.Vehicle.Id,
+                d.Vehicle.Make,
+                d.Vehicle.Model,
+                d.Vehicle.Color,
+                d.Vehicle.LicensePlate,
+                d.Vehicle.Year
+            )
+    );
 }

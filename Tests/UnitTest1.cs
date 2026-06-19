@@ -15,15 +15,12 @@ using System.Security.Claims;
 
 namespace SafeRide.Tests;
 
-// ═══════════════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════════════
 static class TestHelpers
 {
     public static AppDbContext GetDb()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(databaseName: "Db_" + Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName: "Db_" + Guid.NewGuid())
             .Options;
         return new AppDbContext(options);
     }
@@ -49,7 +46,6 @@ static class TestHelpers
         IsVerified = role == "Passenger"
     };
 
-    // Adds User + DriverProfile to DB together to avoid tracking conflicts
     public static async Task<DriverProfile> SeedDriver(AppDbContext db, int driverId, int userId,
         bool approved = true, bool available = true)
     {
@@ -78,16 +74,15 @@ static class TestHelpers
         return driver;
     }
 
-    // Adds Passenger User + Ride to DB together
     public static async Task<Ride> SeedRide(AppDbContext db, int rideId, int passengerId,
         RideStatus status = RideStatus.Requested, int? driverProfileId = null, decimal fare = 100m)
     {
-        // ensure passenger user exists
         if (!db.Users.Any(u => u.Id == passengerId))
         {
             db.Users.Add(MakeUserModel(passengerId, "Passenger", "Passenger " + passengerId));
             await db.SaveChangesAsync();
         }
+
         var ride = new Ride
         {
             Id = rideId,
@@ -105,8 +100,7 @@ static class TestHelpers
             DistanceKm = 0.5,
             SurgeMultiplier = 1.0m,
             RequestedAt = DateTime.UtcNow,
-            StartedAt = (status == RideStatus.InProgress || status == RideStatus.Completed)
-                ? DateTime.UtcNow.AddMinutes(-10) : null,
+            StartedAt = (status == RideStatus.InProgress || status == RideStatus.Completed) ? DateTime.UtcNow.AddMinutes(-10) : null,
             CompletedAt = status == RideStatus.Completed ? DateTime.UtcNow : null
         };
         db.Rides.Add(ride);
@@ -114,9 +108,7 @@ static class TestHelpers
         return ride;
     }
 
-    // Standalone ride object (not seeded) for mock-based tests
-    public static Ride MakeRide(int id, int passengerId,
-        RideStatus status = RideStatus.Requested,
+    public static Ride MakeRide(int id, int passengerId, RideStatus status = RideStatus.Requested,
         int? driverProfileId = null, decimal fare = 100m) => new Ride
         {
             Id = id,
@@ -134,12 +126,10 @@ static class TestHelpers
             DistanceKm = 0.5,
             SurgeMultiplier = 1.0m,
             RequestedAt = DateTime.UtcNow,
-            StartedAt = (status == RideStatus.InProgress || status == RideStatus.Completed)
-                ? DateTime.UtcNow.AddMinutes(-10) : null,
+            StartedAt = (status == RideStatus.InProgress || status == RideStatus.Completed) ? DateTime.UtcNow.AddMinutes(-10) : null,
             CompletedAt = status == RideStatus.Completed ? DateTime.UtcNow : null
         };
 
-    // Standalone driver (not seeded) for mock-based tests
     public static DriverProfile MakeDriverProfile(int id, int userId,
         bool approved = true, bool available = true) => new DriverProfile
         {
@@ -171,9 +161,6 @@ static class TestHelpers
             .Build();
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 1. RIDE REPOSITORY TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class RideRepositoryTests
 {
     [Fact]
@@ -253,11 +240,19 @@ public class RideRepositoryTests
         var result = await new RideRepository(db).GetAllAsync();
         Assert.Equal(3, result.Count());
     }
+
+    [Fact]
+    public async Task CountByStatusAsync_ReturnsCorrectCount()
+    {
+        var db = TestHelpers.GetDb();
+        await TestHelpers.SeedRide(db, 1, 1, RideStatus.Requested);
+        await TestHelpers.SeedRide(db, 2, 2, RideStatus.Requested);
+        await TestHelpers.SeedRide(db, 3, 3, RideStatus.Completed);
+        var count = await new RideRepository(db).CountByStatusAsync(RideStatus.Requested);
+        Assert.Equal(2, count);
+    }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 2. USER REPOSITORY TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class UserRepositoryTests
 {
     [Fact]
@@ -330,9 +325,6 @@ public class UserRepositoryTests
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 3. DRIVER REPOSITORY TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class DriverRepositoryTests
 {
     [Fact]
@@ -364,9 +356,9 @@ public class DriverRepositoryTests
     public async Task GetAvailableDriversAsync_ReturnsOnlyAvailableAndApproved()
     {
         var db = TestHelpers.GetDb();
-        await TestHelpers.SeedDriver(db, 1, 1, approved: true, available: true);  // ✓
-        await TestHelpers.SeedDriver(db, 2, 2, approved: true, available: false); // offline
-        await TestHelpers.SeedDriver(db, 3, 3, approved: false, available: true);  // not approved
+        await TestHelpers.SeedDriver(db, 1, 1, approved: true, available: true);
+        await TestHelpers.SeedDriver(db, 2, 2, approved: true, available: false);
+        await TestHelpers.SeedDriver(db, 3, 3, approved: false, available: true);
         var result = await new DriverRepository(db).GetAvailableDriversAsync();
         Assert.Single(result);
         Assert.Equal(1, result.First().Id);
@@ -381,11 +373,19 @@ public class DriverRepositoryTests
         var result = await new DriverRepository(db).GetAllAsync();
         Assert.Equal(2, result.Count());
     }
+
+    [Fact]
+    public async Task CountAvailableApprovedAsync_ReturnsCorrectCount()
+    {
+        var db = TestHelpers.GetDb();
+        await TestHelpers.SeedDriver(db, 1, 1, approved: true, available: true);
+        await TestHelpers.SeedDriver(db, 2, 2, approved: true, available: false);
+        await TestHelpers.SeedDriver(db, 3, 3, approved: false, available: true);
+        var count = await new DriverRepository(db).CountAvailableApprovedAsync();
+        Assert.Equal(1, count);
+    }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 4. RATING REPOSITORY TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class RatingRepositoryTests
 {
     [Fact]
@@ -401,7 +401,6 @@ public class RatingRepositoryTests
     public async Task GetByRideIdAsync_ReturnsRating_WhenExists()
     {
         var db = TestHelpers.GetDb();
-        // Seed a user for the Rater navigation
         db.Users.Add(TestHelpers.MakeUserModel(1, "Passenger"));
         db.RideRatings.Add(new RideRating { Id = 1, RideId = 1, RaterId = 1, Score = 4 });
         await db.SaveChangesAsync();
@@ -420,36 +419,36 @@ public class RatingRepositoryTests
     public async Task GetByDriverAsync_ReturnsAllDriverRatings()
     {
         var db = TestHelpers.GetDb();
-        // Seed rides with DriverProfileId
         await TestHelpers.SeedRide(db, 1, 1, RideStatus.Completed, driverProfileId: 10);
         await TestHelpers.SeedRide(db, 2, 2, RideStatus.Completed, driverProfileId: 10);
         await TestHelpers.SeedRide(db, 3, 3, RideStatus.Completed, driverProfileId: 99);
-        // Seed rater users
         db.Users.Add(TestHelpers.MakeUserModel(10, "Passenger", "Rater10"));
         db.Users.Add(TestHelpers.MakeUserModel(20, "Passenger", "Rater20"));
         await db.SaveChangesAsync();
         db.RideRatings.AddRange(
             new RideRating { RideId = 1, RaterId = 10, Score = 5 },
             new RideRating { RideId = 2, RaterId = 20, Score = 4 },
-            new RideRating { RideId = 3, RaterId = 10, Score = 3 }); // driver 99
+            new RideRating { RideId = 3, RaterId = 10, Score = 3 });
         await db.SaveChangesAsync();
         var result = await new RatingRepository(db).GetByDriverAsync(10);
         Assert.Equal(2, result.Count());
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 5. RIDE SERVICE TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class RideServiceTests
 {
     private readonly Mock<IRideRepository> _rideRepo = new();
     private readonly Mock<IDriverRepository> _driverRepo = new();
+    private readonly Mock<INotificationRepository> _notificationRepo = new();
 
-    private RideService MakeService() =>
-        new RideService(_rideRepo.Object, _driverRepo.Object, TestHelpers.GetDb());
+    private RideService MakeService()
+    {
+        _rideRepo.Setup(r => r.CountByStatusAsync(It.IsAny<RideStatus>())).ReturnsAsync(0);
+        _driverRepo.Setup(d => d.CountAvailableApprovedAsync()).ReturnsAsync(1);
+        _notificationRepo.Setup(n => n.CreateAsync(It.IsAny<Notification>())).ReturnsAsync((Notification n) => n);
+        return new RideService(_rideRepo.Object, _driverRepo.Object, _notificationRepo.Object);
+    }
 
-    // ── RequestRide ───────────────────────────────────────────────
     [Fact]
     public async Task RequestRide_ThrowsIfPassengerHasActiveRide()
     {
@@ -463,8 +462,7 @@ public class RideServiceTests
     public async Task RequestRide_CreatesRide_WhenNoActiveRide()
     {
         _rideRepo.Setup(r => r.GetActiveRideForPassengerAsync(1)).ReturnsAsync((Ride?)null);
-        _rideRepo.Setup(r => r.CreateAsync(It.IsAny<Ride>()))
-            .ReturnsAsync((Ride r) => { r.Id = 1; return r; });
+        _rideRepo.Setup(r => r.CreateAsync(It.IsAny<Ride>())).ReturnsAsync((Ride r) => { r.Id = 1; return r; });
         var dto = new RequestRideDto("City Center", 41.9981, 20.9716, "Hospital", 42.0010, 20.9680);
         var result = await MakeService().RequestRideAsync(1, dto);
         Assert.Equal(RideStatus.Requested, result.Status);
@@ -476,35 +474,31 @@ public class RideServiceTests
     public async Task RequestRide_SetsCorrectAddresses()
     {
         _rideRepo.Setup(r => r.GetActiveRideForPassengerAsync(1)).ReturnsAsync((Ride?)null);
-        _rideRepo.Setup(r => r.CreateAsync(It.IsAny<Ride>()))
-            .ReturnsAsync((Ride r) => { r.Id = 1; return r; });
+        _rideRepo.Setup(r => r.CreateAsync(It.IsAny<Ride>())).ReturnsAsync((Ride r) => { r.Id = 1; return r; });
         var dto = new RequestRideDto("Pickup Place", 41.9981, 20.9716, "Dropoff Place", 42.001, 20.968);
         var result = await MakeService().RequestRideAsync(1, dto);
         Assert.Equal("Pickup Place", result.PickupAddress);
         Assert.Equal("Dropoff Place", result.DropoffAddress);
     }
 
-    // ── AcceptRide ────────────────────────────────────────────────
     [Fact]
     public async Task AcceptRide_ThrowsIfRideNotFound()
     {
         _rideRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Ride?)null);
-        // Service throws any exception when ride not found
         await Assert.ThrowsAnyAsync<Exception>(() => MakeService().AcceptRideAsync(99, 1));
     }
 
     [Fact]
     public async Task AcceptRide_ThrowsIfRideNotRequested()
     {
-        _rideRepo.Setup(r => r.GetByIdAsync(1))
-            .ReturnsAsync(new Ride { Id = 1, Status = RideStatus.Accepted });
+        _rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(new Ride { Id = 1, Status = RideStatus.Accepted });
         await Assert.ThrowsAnyAsync<Exception>(() => MakeService().AcceptRideAsync(1, 1));
     }
 
     [Fact]
     public async Task AcceptRide_SetsStatusToAccepted()
     {
-        var ride = TestHelpers.MakeRide(1, 1, RideStatus.Requested, driverProfileId: 1);
+        var ride = TestHelpers.MakeRide(1, 1, RideStatus.Requested);
         var driver = TestHelpers.MakeDriverProfile(1, 10);
         _rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(ride);
         _driverRepo.Setup(d => d.GetByIdAsync(1)).ReturnsAsync(driver);
@@ -512,14 +506,14 @@ public class RideServiceTests
         _driverRepo.Setup(d => d.UpdateAsync(It.IsAny<DriverProfile>())).ReturnsAsync((DriverProfile d) => d);
         var result = await MakeService().AcceptRideAsync(1, 1);
         Assert.Equal(RideStatus.Accepted, result.Status);
+        Assert.Equal(1, result.DriverProfileId);
+        Assert.False(driver.IsAvailable);
     }
 
-    // ── StartRide ─────────────────────────────────────────────────
     [Fact]
     public async Task StartRide_ThrowsIfNotAccepted()
     {
-        _rideRepo.Setup(r => r.GetByIdAsync(1))
-            .ReturnsAsync(new Ride { Id = 1, Status = RideStatus.Requested });
+        _rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(new Ride { Id = 1, Status = RideStatus.Requested });
         await Assert.ThrowsAnyAsync<Exception>(() => MakeService().StartRideAsync(1, 1));
     }
 
@@ -527,20 +521,16 @@ public class RideServiceTests
     public async Task StartRide_SetsStatusToInProgress()
     {
         var ride = TestHelpers.MakeRide(1, 1, RideStatus.Accepted, driverProfileId: 1);
-        var driver = TestHelpers.MakeDriverProfile(1, 10);
         _rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(ride);
-        _driverRepo.Setup(d => d.GetByIdAsync(1)).ReturnsAsync(driver);
         _rideRepo.Setup(r => r.UpdateAsync(It.IsAny<Ride>())).ReturnsAsync((Ride r) => r);
         var result = await MakeService().StartRideAsync(1, 1);
         Assert.Equal(RideStatus.InProgress, result.Status);
     }
 
-    // ── CompleteRide ──────────────────────────────────────────────
     [Fact]
     public async Task CompleteRide_ThrowsIfNotInProgress()
     {
-        _rideRepo.Setup(r => r.GetByIdAsync(1))
-            .ReturnsAsync(new Ride { Id = 1, Status = RideStatus.Requested });
+        _rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(new Ride { Id = 1, Status = RideStatus.Requested });
         await Assert.ThrowsAnyAsync<Exception>(() => MakeService().CompleteRideAsync(1, 1));
     }
 
@@ -561,12 +551,10 @@ public class RideServiceTests
         Assert.NotNull(result.FinalFare);
     }
 
-    // ── CancelRide ────────────────────────────────────────────────
     [Fact]
     public async Task CancelRide_ThrowsIfAlreadyCompleted()
     {
-        _rideRepo.Setup(r => r.GetByIdAsync(1))
-            .ReturnsAsync(new Ride { Id = 1, Status = RideStatus.Completed });
+        _rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(new Ride { Id = 1, Status = RideStatus.Completed });
         await Assert.ThrowsAnyAsync<Exception>(() => MakeService().CancelRideAsync(1, 1));
     }
 
@@ -580,7 +568,6 @@ public class RideServiceTests
         Assert.Equal(RideStatus.Cancelled, result.Status);
     }
 
-    // ── Fare & Distance ───────────────────────────────────────────
     [Fact]
     public async Task CalculateFare_ReturnsAtLeastBaseFare()
     {
@@ -618,13 +605,14 @@ public class RideServiceTests
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 6. AUTH CONTROLLER TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class AuthControllerTests
 {
-    private AuthController MakeController(AppDbContext db) =>
-        new AuthController(new UserRepository(db), new AuthService(TestHelpers.MakeConfig()));
+    private AuthController MakeController(AppDbContext db)
+    {
+        var userService = new UserService(new UserRepository(db));
+        var authService = new AuthService(TestHelpers.MakeConfig());
+        return new AuthController(userService, authService);
+    }
 
     [Fact]
     public async Task Register_ReturnsOk_WithValidPassengerData()
@@ -716,16 +704,12 @@ public class AuthControllerTests
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 7. RIDES CONTROLLER TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class RidesControllerTests
 {
-    private RidesController MakeController(
-        IRideRepository rideRepo, IDriverRepository driverRepo, IRideService rideService,
+    private RidesController MakeController(IRideService rideService, IDriverService driverService,
         int userId = 1, string role = "Passenger")
     {
-        var ctrl = new RidesController(rideRepo, driverRepo, rideService);
+        var ctrl = new RidesController(rideService, driverService);
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext { User = TestHelpers.MakePrincipal(userId, role) }
@@ -736,70 +720,84 @@ public class RidesControllerTests
     [Fact]
     public async Task GetById_ReturnsNotFound_WhenRideDoesNotExist()
     {
-        var rideRepo = new Mock<IRideRepository>();
-        rideRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Ride?)null);
-        var result = await MakeController(rideRepo.Object,
-            new Mock<IDriverRepository>().Object, new Mock<IRideService>().Object).GetById(99);
+        var rideService = new Mock<IRideService>();
+        rideService.Setup(s => s.GetByIdAsync(99)).ReturnsAsync((Ride?)null);
+        var result = await MakeController(rideService.Object, new Mock<IDriverService>().Object).GetById(99);
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
     public async Task GetById_ReturnsOk_WhenRideExistsAndUserIsPassenger()
     {
-        var ride = TestHelpers.MakeRide(1, 1);
-        var rideRepo = new Mock<IRideRepository>();
-        rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(ride);
-        var result = await MakeController(rideRepo.Object,
-            new Mock<IDriverRepository>().Object, new Mock<IRideService>().Object, userId: 1).GetById(1);
+        var rideService = new Mock<IRideService>();
+        rideService.Setup(s => s.GetByIdAsync(1)).ReturnsAsync(TestHelpers.MakeRide(1, 1));
+        var result = await MakeController(rideService.Object, new Mock<IDriverService>().Object, userId: 1).GetById(1);
         Assert.IsType<OkObjectResult>(result);
     }
 
     [Fact]
     public async Task GetMyRides_ReturnsOk_ForPassenger()
     {
-        var rides = new List<Ride> { TestHelpers.MakeRide(1, 1), TestHelpers.MakeRide(2, 1) };
-        var rideRepo = new Mock<IRideRepository>();
-        rideRepo.Setup(r => r.GetByPassengerIdAsync(1)).ReturnsAsync(rides);
-        var result = await MakeController(rideRepo.Object,
-            new Mock<IDriverRepository>().Object, new Mock<IRideService>().Object,
-            userId: 1, role: "Passenger").GetMyRides();
+        var rideService = new Mock<IRideService>();
+        rideService.Setup(s => s.GetByPassengerIdAsync(1)).ReturnsAsync(new List<Ride>
+        {
+            TestHelpers.MakeRide(1, 1), TestHelpers.MakeRide(2, 1)
+        });
+        var result = await MakeController(rideService.Object, new Mock<IDriverService>().Object, userId: 1, role: "Passenger").GetMyRides();
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetMyRides_ReturnsOk_ForDriver()
+    {
+        var rideService = new Mock<IRideService>();
+        var driverService = new Mock<IDriverService>();
+        driverService.Setup(s => s.GetByUserIdAsync(10)).ReturnsAsync(TestHelpers.MakeDriverProfile(5, 10));
+        rideService.Setup(s => s.GetByDriverProfileIdAsync(5)).ReturnsAsync(new List<Ride>
+        {
+            TestHelpers.MakeRide(1, 1, RideStatus.Accepted, driverProfileId: 5)
+        });
+        var result = await MakeController(rideService.Object, driverService.Object, userId: 10, role: "Driver").GetMyRides();
         Assert.IsType<OkObjectResult>(result);
     }
 
     [Fact]
     public async Task RequestRide_ReturnsCreatedAtAction_WithValidDto()
     {
-        var svc = new Mock<IRideService>();
-        svc.Setup(s => s.RequestRideAsync(1, It.IsAny<RequestRideDto>()))
+        var rideService = new Mock<IRideService>();
+        rideService.Setup(s => s.RequestRideAsync(1, It.IsAny<RequestRideDto>()))
             .ReturnsAsync(TestHelpers.MakeRide(1, 1));
-        var result = await MakeController(new Mock<IRideRepository>().Object,
-            new Mock<IDriverRepository>().Object, svc.Object)
+        var result = await MakeController(rideService.Object, new Mock<IDriverService>().Object)
             .RequestRide(new RequestRideDto("A", 41.99, 20.97, "B", 42.00, 20.98));
-        // RequestRide returns CreatedAtAction, not Ok
         Assert.IsType<CreatedAtActionResult>(result);
+    }
+
+    [Fact]
+    public async Task Accept_ReturnsBadRequest_WhenDriverNotAvailable()
+    {
+        var driverService = new Mock<IDriverService>();
+        driverService.Setup(s => s.GetByUserIdAsync(10))
+            .ReturnsAsync(TestHelpers.MakeDriverProfile(1, 10, approved: true, available: false));
+        var result = await MakeController(new Mock<IRideService>().Object, driverService.Object, userId: 10, role: "Driver").Accept(1);
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
     public async Task Cancel_ReturnsBadRequest_WhenServiceThrows()
     {
-        var svc = new Mock<IRideService>();
-        // CancelRideAsync has signature (int rideId, int userId, string reason = "")
-        svc.Setup(s => s.CancelRideAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>()))
+        var rideService = new Mock<IRideService>();
+        rideService.Setup(s => s.CancelRideAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>()))
             .ThrowsAsync(new InvalidOperationException("Already completed"));
-        var result = await MakeController(new Mock<IRideRepository>().Object,
-            new Mock<IDriverRepository>().Object, svc.Object).Cancel(1);
+        var result = await MakeController(rideService.Object, new Mock<IDriverService>().Object).Cancel(1);
         Assert.IsType<BadRequestObjectResult>(result);
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 8. DRIVERS CONTROLLER TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class DriversControllerTests
 {
-    private DriversController MakeController(IDriverRepository repo, int userId = 1, string role = "Driver")
+    private DriversController MakeController(IDriverService service, int userId = 1, string role = "Driver")
     {
-        var ctrl = new DriversController(repo);
+        var ctrl = new DriversController(service);
         ctrl.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext { User = TestHelpers.MakePrincipal(userId, role) }
@@ -810,17 +808,17 @@ public class DriversControllerTests
     [Fact]
     public async Task GetById_ReturnsNotFound_WhenDriverMissing()
     {
-        var repo = new Mock<IDriverRepository>();
-        repo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((DriverProfile?)null);
-        Assert.IsType<NotFoundResult>(await MakeController(repo.Object).GetById(99));
+        var service = new Mock<IDriverService>();
+        service.Setup(s => s.GetByIdAsync(99)).ReturnsAsync((DriverProfile?)null);
+        Assert.IsType<NotFoundResult>(await MakeController(service.Object).GetById(99));
     }
 
     [Fact]
     public async Task Create_ReturnsBadRequest_WhenProfileAlreadyExists()
     {
-        var repo = new Mock<IDriverRepository>();
-        repo.Setup(r => r.GetByUserIdAsync(1)).ReturnsAsync(TestHelpers.MakeDriverProfile(1, 1));
-        var result = await MakeController(repo.Object)
+        var service = new Mock<IDriverService>();
+        service.Setup(s => s.GetByUserIdAsync(1)).ReturnsAsync(TestHelpers.MakeDriverProfile(1, 1));
+        var result = await MakeController(service.Object)
             .Create(new CreateDriverProfileDto("LIC", "Toyota", "Corolla", "White", "SK-001-AB", 2022));
         Assert.IsType<BadRequestObjectResult>(result);
     }
@@ -828,21 +826,22 @@ public class DriversControllerTests
     [Fact]
     public async Task Approve_ReturnsNotFound_WhenDriverMissing()
     {
-        var repo = new Mock<IDriverRepository>();
-        repo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((DriverProfile?)null);
-        Assert.IsType<NotFoundResult>(await MakeController(repo.Object, role: "Admin").Approve(99));
+        var service = new Mock<IDriverService>();
+        service.Setup(s => s.GetByIdAsync(99)).ReturnsAsync((DriverProfile?)null);
+        Assert.IsType<NotFoundResult>(await MakeController(service.Object, role: "Admin").Approve(99));
     }
 
     [Fact]
-    public async Task Approve_SetsIsApprovedAndVerified()
+    public async Task Approve_SetsIsApprovedAvailableAndVerified()
     {
-        var driver = TestHelpers.MakeDriverProfile(1, 10, approved: false);
-        var repo = new Mock<IDriverRepository>();
-        repo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(driver);
-        repo.Setup(r => r.UpdateAsync(It.IsAny<DriverProfile>())).ReturnsAsync((DriverProfile d) => d);
-        var result = await MakeController(repo.Object, role: "Admin").Approve(1);
+        var driver = TestHelpers.MakeDriverProfile(1, 10, approved: false, available: false);
+        var service = new Mock<IDriverService>();
+        service.Setup(s => s.GetByIdAsync(1)).ReturnsAsync(driver);
+        service.Setup(s => s.UpdateAsync(It.IsAny<DriverProfile>())).ReturnsAsync((DriverProfile d) => d);
+        var result = await MakeController(service.Object, role: "Admin").Approve(1);
         Assert.IsType<OkObjectResult>(result);
         Assert.True(driver.IsApproved);
+        Assert.True(driver.IsAvailable);
         Assert.True(driver.User.IsVerified);
     }
 
@@ -850,19 +849,19 @@ public class DriversControllerTests
     public async Task ToggleAvailability_ReturnsBadRequest_WhenNotApproved()
     {
         var driver = TestHelpers.MakeDriverProfile(1, 1, approved: false, available: false);
-        var repo = new Mock<IDriverRepository>();
-        repo.Setup(r => r.GetByUserIdAsync(1)).ReturnsAsync(driver);
-        Assert.IsType<BadRequestObjectResult>(await MakeController(repo.Object).ToggleAvailability(true));
+        var service = new Mock<IDriverService>();
+        service.Setup(s => s.GetByUserIdAsync(1)).ReturnsAsync(driver);
+        Assert.IsType<BadRequestObjectResult>(await MakeController(service.Object).ToggleAvailability(true));
     }
 
     [Fact]
     public async Task ToggleAvailability_UpdatesToTrue_WhenApproved()
     {
         var driver = TestHelpers.MakeDriverProfile(1, 1, approved: true, available: false);
-        var repo = new Mock<IDriverRepository>();
-        repo.Setup(r => r.GetByUserIdAsync(1)).ReturnsAsync(driver);
-        repo.Setup(r => r.UpdateAsync(It.IsAny<DriverProfile>())).ReturnsAsync((DriverProfile d) => d);
-        var result = await MakeController(repo.Object).ToggleAvailability(true);
+        var service = new Mock<IDriverService>();
+        service.Setup(s => s.GetByUserIdAsync(1)).ReturnsAsync(driver);
+        service.Setup(s => s.UpdateAsync(It.IsAny<DriverProfile>())).ReturnsAsync((DriverProfile d) => d);
+        var result = await MakeController(service.Object).ToggleAvailability(true);
         Assert.IsType<OkObjectResult>(result);
         Assert.True(driver.IsAvailable);
     }
@@ -871,101 +870,130 @@ public class DriversControllerTests
     public async Task ToggleAvailability_UpdatesToFalse_WhenGoingOffline()
     {
         var driver = TestHelpers.MakeDriverProfile(1, 1, approved: true, available: true);
-        var repo = new Mock<IDriverRepository>();
-        repo.Setup(r => r.GetByUserIdAsync(1)).ReturnsAsync(driver);
-        repo.Setup(r => r.UpdateAsync(It.IsAny<DriverProfile>())).ReturnsAsync((DriverProfile d) => d);
-        await MakeController(repo.Object).ToggleAvailability(false);
+        var service = new Mock<IDriverService>();
+        service.Setup(s => s.GetByUserIdAsync(1)).ReturnsAsync(driver);
+        service.Setup(s => s.UpdateAsync(It.IsAny<DriverProfile>())).ReturnsAsync((DriverProfile d) => d);
+        await MakeController(service.Object).ToggleAvailability(false);
         Assert.False(driver.IsAvailable);
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 9. RATINGS CONTROLLER TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class RatingsControllerTests
 {
     private RatingsController MakeController(
-        IRatingRepository ratingRepo, IRideRepository rideRepo,
-        IDriverRepository driverRepo, int userId = 1)
+        IRatingService ratingService,
+        int userId = 1)
     {
-        var ctrl = new RatingsController(ratingRepo, rideRepo, driverRepo);
+        var ctrl = new RatingsController(ratingService);
+
         ctrl.ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext { User = TestHelpers.MakePrincipal(userId, "Passenger") }
+            HttpContext = new DefaultHttpContext
+            {
+                User = TestHelpers.MakePrincipal(userId, "Passenger")
+            }
         };
+
         return ctrl;
     }
 
     [Fact]
     public async Task Create_ReturnsBadRequest_WhenScoreTooHigh()
     {
-        var result = await MakeController(new Mock<IRatingRepository>().Object,
-            new Mock<IRideRepository>().Object, new Mock<IDriverRepository>().Object)
+        var ratingService = new Mock<IRatingService>();
+
+        ratingService
+            .Setup(s => s.CreateRatingAsync(1, It.IsAny<CreateRatingDto>()))
+            .ThrowsAsync(new InvalidOperationException("Score must be between 1 and 5."));
+
+        var result = await MakeController(ratingService.Object)
             .Create(new CreateRatingDto(1, 6, null));
+
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
     public async Task Create_ReturnsBadRequest_WhenScoreTooLow()
     {
-        var result = await MakeController(new Mock<IRatingRepository>().Object,
-            new Mock<IRideRepository>().Object, new Mock<IDriverRepository>().Object)
+        var ratingService = new Mock<IRatingService>();
+
+        ratingService
+            .Setup(s => s.CreateRatingAsync(1, It.IsAny<CreateRatingDto>()))
+            .ThrowsAsync(new InvalidOperationException("Score must be between 1 and 5."));
+
+        var result = await MakeController(ratingService.Object)
             .Create(new CreateRatingDto(1, 0, null));
+
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
     public async Task Create_ReturnsNotFound_WhenRideNotFound()
     {
-        var rideRepo = new Mock<IRideRepository>();
-        rideRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Ride?)null);
-        var result = await MakeController(new Mock<IRatingRepository>().Object,
-            rideRepo.Object, new Mock<IDriverRepository>().Object)
+        var ratingService = new Mock<IRatingService>();
+
+        ratingService
+            .Setup(s => s.CreateRatingAsync(1, It.IsAny<CreateRatingDto>()))
+            .ThrowsAsync(new KeyNotFoundException("Ride not found."));
+
+        var result = await MakeController(ratingService.Object)
             .Create(new CreateRatingDto(99, 5, null));
+
         Assert.IsType<NotFoundObjectResult>(result);
     }
 
     [Fact]
     public async Task Create_ReturnsBadRequest_WhenRideNotCompleted()
     {
-        var rideRepo = new Mock<IRideRepository>();
-        rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(TestHelpers.MakeRide(1, 1, RideStatus.InProgress));
-        var result = await MakeController(new Mock<IRatingRepository>().Object,
-            rideRepo.Object, new Mock<IDriverRepository>().Object)
+        var ratingService = new Mock<IRatingService>();
+
+        ratingService
+            .Setup(s => s.CreateRatingAsync(1, It.IsAny<CreateRatingDto>()))
+            .ThrowsAsync(new InvalidOperationException("Can only rate completed rides."));
+
+        var result = await MakeController(ratingService.Object)
             .Create(new CreateRatingDto(1, 5, null));
+
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
     public async Task Create_ReturnsBadRequest_WhenAlreadyRated()
     {
-        var rideRepo = new Mock<IRideRepository>();
-        rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(TestHelpers.MakeRide(1, 1, RideStatus.Completed));
-        var ratingRepo = new Mock<IRatingRepository>();
-        ratingRepo.Setup(r => r.GetByRideIdAsync(1)).ReturnsAsync(new RideRating { Id = 1, Score = 5 });
-        var result = await MakeController(ratingRepo.Object, rideRepo.Object,
-            new Mock<IDriverRepository>().Object).Create(new CreateRatingDto(1, 4, "Good"));
+        var ratingService = new Mock<IRatingService>();
+
+        ratingService
+            .Setup(s => s.CreateRatingAsync(1, It.IsAny<CreateRatingDto>()))
+            .ThrowsAsync(new InvalidOperationException("Ride already rated."));
+
+        var result = await MakeController(ratingService.Object)
+            .Create(new CreateRatingDto(1, 4, "Good"));
+
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
     public async Task Create_ReturnsOk_WithValidFirstRating()
     {
-        var rideRepo = new Mock<IRideRepository>();
-        rideRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(TestHelpers.MakeRide(1, 1, RideStatus.Completed));
-        var ratingRepo = new Mock<IRatingRepository>();
-        ratingRepo.Setup(r => r.GetByRideIdAsync(1)).ReturnsAsync((RideRating?)null);
-        ratingRepo.Setup(r => r.CreateAsync(It.IsAny<RideRating>()))
-            .ReturnsAsync((RideRating r) => { r.Id = 1; return r; });
-        var result = await MakeController(ratingRepo.Object, rideRepo.Object,
-            new Mock<IDriverRepository>().Object).Create(new CreateRatingDto(1, 5, "Great!"));
+        var ratingService = new Mock<IRatingService>();
+
+        ratingService
+            .Setup(s => s.CreateRatingAsync(1, It.IsAny<CreateRatingDto>()))
+            .ReturnsAsync(new RatingDto(
+                1,
+                1,
+                "",
+                5,
+                "Great!",
+                DateTime.UtcNow
+            ));
+
+        var result = await MakeController(ratingService.Object)
+            .Create(new CreateRatingDto(1, 5, "Great!"));
+
         Assert.IsType<OkObjectResult>(result);
     }
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// 10. MODEL / DOMAIN TESTS
-// ═══════════════════════════════════════════════════════════════════
 public class ModelTests
 {
     [Fact] public void User_DefaultRole_IsPassenger() => Assert.Equal("Passenger", new User().Role);
